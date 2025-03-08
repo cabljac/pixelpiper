@@ -1,74 +1,166 @@
-# pixelpiper
+# PixelPiper
 
-[![Release](https://img.shields.io/github/v/release/cabljac/pixelpiper)](https://img.shields.io/github/v/release/cabljac/pixelpiper)
-[![Build status](https://img.shields.io/github/actions/workflow/status/cabljac/pixelpiper/main.yml?branch=main)](https://github.com/cabljac/pixelpiper/actions/workflows/main.yml?query=branch%3Amain)
-[![codecov](https://codecov.io/gh/cabljac/pixelpiper/branch/main/graph/badge.svg)](https://codecov.io/gh/cabljac/pixelpiper)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/cabljac/pixelpiper)](https://img.shields.io/github/commit-activity/m/cabljac/pixelpiper)
-[![License](https://img.shields.io/github/license/cabljac/pixelpiper)](https://img.shields.io/github/license/cabljac/pixelpiper)
 
-This is a template repository for Python projects that use uv for their dependency management.
+NOTE: (this is a draft)
 
-- **Github repository**: <https://github.com/cabljac/pixelpiper/>
-- **Documentation** <https://cabljac.github.io/pixelpiper/>
+**PixelPiper** is a modular and extensible image processing pipeline framework built in Python. It enables users to define and execute image processing steps asynchronously, with built-in support for retries, timeouts, and context management.
 
-## Getting started with your project
+## Features
 
-### 1. Create a New Repository
-
-First, create a repository on GitHub with the same name as this project, and then run the following commands:
-
-```bash
-git init -b main
-git add .
-git commit -m "init commit"
-git remote add origin git@github.com:cabljac/pixelpiper.git
-git push -u origin main
-```
-
-### 2. Set Up Your Development Environment
-
-Then, install the environment and the pre-commit hooks with
-
-```bash
-make install
-```
-
-This will also generate your `uv.lock` file
-
-### 3. Run the pre-commit hooks
-
-Initially, the CI/CD pipeline might be failing due to formatting issues. To resolve those run:
-
-```bash
-uv run pre-commit run -a
-```
-
-### 4. Commit the changes
-
-Lastly, commit the changes made by the two steps above to your repository.
-
-```bash
-git add .
-git commit -m 'Fix formatting issues'
-git push origin main
-```
-
-You are now ready to start development on your project!
-The CI/CD pipeline will be triggered when you open a pull request, merge to main, or when you create a new release.
-
-To finalize the set-up for publishing to PyPI, see [here](https://fpgmaas.github.io/cookiecutter-uv/features/publishing/#set-up-for-pypi).
-For activating the automatic documentation with MkDocs, see [here](https://fpgmaas.github.io/cookiecutter-uv/features/mkdocs/#enabling-the-documentation-on-github).
-To enable the code coverage reports, see [here](https://fpgmaas.github.io/cookiecutter-uv/features/codecov/).
-
-## Releasing a new version
-
-- Create an API Token on [PyPI](https://pypi.org/).
-- Add the API Token to your projects secrets with the name `PYPI_TOKEN` by visiting [this page](https://github.com/cabljac/pixelpiper/settings/secrets/actions/new).
-- Create a [new release](https://github.com/cabljac/pixelpiper/releases/new) on Github.
-- Create a new tag in the form `*.*.*`.
-
-For more details, see [here](https://fpgmaas.github.io/cookiecutter-uv/features/cicd/#how-to-trigger-a-release).
+- **Pipeline-based execution**: Define and run sequences of image processing steps.
+- **Asynchronous processing**: Steps are executed asynchronously using `asyncio` for efficient performance.
+- **Decorators for step metadata**: Use `@step`, `@requires`, `@provides`, `@timeout`, and `@max_retries` to define steps with clear dependencies and constraints.
+- **Callback system**: Implement custom callbacks for logging, timing, and monitoring execution.
+- **Automatic retry and timeout handling**: Ensure robustness by configuring retry attempts and execution time limits.
 
 ---
 
-Repository initiated with [fpgmaas/cookiecutter-uv](https://github.com/fpgmaas/cookiecutter-uv).
+## Installation
+
+You can install PixelPiper using `pip`:
+
+```sh
+pip install pixelpiper
+```
+
+(Replace with the actual package name if published on PyPI.)
+
+---
+
+## Usage
+
+### Defining a Pipeline Step
+
+Steps in PixelPiper are created by subclassing `PipelineStep` and using decorators to define their metadata:
+
+```python
+from PIL import Image
+from typing import Dict, Any
+from pixelpiper.pipeline import PipelineStep, StepResult, StepStatus
+from pixelpiper.decorators import step, requires, provides, timeout, max_retries
+
+class ImageResizeStep(PipelineStep):
+    """Resizes an image based on the target size."""
+    
+    @step(name="image_resize")
+    @requires("input_size")
+    @provides("resized_image", "resize_factor")
+    @timeout(10.0)
+    @max_retries(2)
+    async def process(self, image: Image.Image, context: Dict[str, Any]) -> StepResult:
+        try:
+            target_size = context["input_size"]
+            width, height = image.size
+            resize_factor = target_size / max(width, height)
+            new_size = (int(width * resize_factor), int(height * resize_factor))
+            resized_image = image.resize(new_size)
+            
+            return StepResult(
+                status=StepStatus.COMPLETED,
+                data={"resized_image": resized_image, "resize_factor": resize_factor}
+            )
+        except Exception as e:
+            return StepResult(status=StepStatus.FAILED, data={}, error=str(e))
+```
+
+---
+
+### Running a Pipeline
+
+A pipeline consists of multiple processing steps, executed in sequence:
+
+```python
+import asyncio
+from PIL import Image
+from pixelpiper.pipeline import Pipeline, PipelineConfig
+from pixelpiper.callbacks import TimingCallback
+from examples.image_steps import ImageResizeStep
+
+async def main():
+    config = PipelineConfig(max_retries=3, timeout=15.0)
+    pipeline = Pipeline(config, callbacks=[TimingCallback()])
+
+    # Add processing steps
+    pipeline.add_step(ImageResizeStep())
+
+    # Create a sample image
+    image = Image.new("RGB", (800, 600), color="white")
+    context = {"input_size": 400}
+
+    try:
+        result = await pipeline.run(image, context)
+        print("Pipeline completed successfully!")
+        print("Results:", result)
+    except Exception as e:
+        print("Pipeline failed:", e)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## API Reference
+
+### `PipelineStep`
+Base class for all steps in the pipeline.
+
+- `name`: Name of the step.
+- `required_context_keys`: List of required keys in the context.
+- `provided_context_keys`: List of keys this step adds to the context.
+
+#### `async def process(self, image: Image.Image, context: Dict[str, Any]) -> StepResult`
+The core method that processes the image and updates the pipeline context.
+
+---
+
+### Decorators
+
+- `@step(name)`: Assigns a custom name to a step.
+- `@requires(*keys)`: Specifies required context keys.
+- `@provides(*keys)`: Declares what keys this step will add to the context.
+- `@timeout(seconds)`: Sets a timeout for the step execution.
+- `@max_retries(count)`: Defines how many times the step should retry on failure.
+
+---
+
+### `Pipeline`
+Orchestrates and executes the pipeline steps.
+
+- `Pipeline(config, callbacks)`: Initializes a pipeline.
+- `add_step(step)`: Adds a step to the pipeline.
+- `add_callback(callback)`: Adds a callback to monitor execution.
+- `async def run(image, initial_context)`: Runs the pipeline with an image and context.
+
+---
+
+### `StepResult`
+The result of a pipeline step.
+
+- `status`: `StepStatus` enum (`COMPLETED`, `FAILED`, etc.).
+- `data`: Dictionary with output values.
+- `error`: Optional error message if the step fails.
+
+---
+
+## Contributing
+
+We welcome contributions! Please follow these steps:
+
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature-branch`).
+3. Commit your changes (`git commit -m "Add new feature"`).
+4. Push to the branch (`git push origin feature-branch`).
+5. Open a pull request.
+
+---
+
+## License
+
+This project is licensed under the Apache 2.0 License. See [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+This project was inspired by modular processing frameworks and designed for AI-driven image processing workflows.

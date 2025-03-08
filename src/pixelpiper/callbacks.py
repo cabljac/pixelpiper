@@ -1,22 +1,26 @@
-import time
 import logging
-from typing import Dict
-from .types import StepResult  # Common types extracted to a separate module
+import time
+
+from .pipeline_types import StepResult  # Common types extracted to a separate module
 
 logger = logging.getLogger(__name__)
 
+
 class PipelineCallback:
     """Interface for pipeline callbacks."""
+
     async def before_step(self, step_name: str) -> None:
         pass
 
     async def after_step(self, step_name: str, result: StepResult) -> None:
         pass
 
+
 class TimingCallback(PipelineCallback):
     """Callback that tracks execution time for pipeline steps."""
+
     def __init__(self) -> None:
-        self.step_timings: Dict[str, float] = {}
+        self.step_timings: dict[str, float] = {}
         self._current_start: float = 0.0
 
     async def before_step(self, step_name: str) -> None:

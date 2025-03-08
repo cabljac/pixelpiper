@@ -2,71 +2,84 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from PIL import Image
+
 from .callbacks import PipelineCallback
-from .types import StepResult, StepStatus
+from .exceptions import MissingContextError, StepExecutionError, StepFailedError
+from .pipeline_types import StepResult, StepStatus
 
 logger = logging.getLogger(__name__)
 
+
 class PipelineStep(ABC):
     """Abstract base class for pipeline steps."""
+
     def __init__(self, name: Optional[str] = None) -> None:
         self._name = name or self.__class__.__name__
-        self._required_context_keys: List[str] = []
-        self._provided_context_keys: List[str] = []
+        self._required_context_keys: list[str] = []
+        self._provided_context_keys: list[str] = []
         self._load_metadata()
 
     def _load_metadata(self) -> None:
-      process_method = getattr(self.__class__, "process", None)
-      if process_method and hasattr(process_method, "_step_metadata"):
-          metadata = process_method._step_metadata
-          if metadata.name:
-              self._name = metadata.name
-          self._required_context_keys = list(metadata.requires)
-          self._provided_context_keys = list(metadata.provides)
-
+        process_method = getattr(self.__class__, "process", None)
+        if process_method and hasattr(process_method, "_step_metadata"):
+            metadata = process_method._step_metadata
+            if metadata.name:
+                self._name = metadata.name
+            self._required_context_keys = list(metadata.requires)
+            self._provided_context_keys = list(metadata.provides)
 
     @property
     def name(self) -> str:
         return self._name
 
     @property
-    def required_context_keys(self) -> List[str]:
+    def required_context_keys(self) -> list[str]:
         return self._required_context_keys
 
     @property
-    def provided_context_keys(self) -> List[str]:
+    def provided_context_keys(self) -> list[str]:
         return self._provided_context_keys
 
-    def validate_context(self, context: Dict[str, Any]) -> bool:
+    def validate_context(self, context: dict[str, Any]) -> bool:
         missing = [key for key in self.required_context_keys if key not in context]
         if missing:
-            logger.warning("Missing required keys", extra={"step": self.name, "missing": missing})
+            logger.warning(
+                "Missing required keys",
+                extra={"step": self.name, "missing": missing},
+            )
         return not missing
 
     @abstractmethod
-    async def process(self, image: Image.Image, context: Dict[str, Any]) -> StepResult:
+    async def process(self, image: Image.Image, context: dict[str, Any]) -> StepResult:
         """Process the input image and update the context."""
         pass
+
 
 @dataclass
 class PipelineConfig:
     """Configuration for pipeline execution."""
+
     max_retries: int = 3
     retry_delay: float = 1.0
     timeout: float = 30.0
     validate_outputs: bool = True
 
+
 class Pipeline:
     """Pipeline executor for running a series of steps."""
-    def __init__(self, config: Optional[PipelineConfig] = None, callbacks: Optional[List[PipelineCallback]] = None) -> None:
-        self.steps: List[PipelineStep] = []
-        self.context: Dict[str, Any] = {}
+
+    def __init__(
+        self,
+        config: Optional[PipelineConfig] = None,
+        callbacks: Optional[list[PipelineCallback]] = None,
+    ) -> None:
+        self.steps: list[PipelineStep] = []
+        self.context: dict[str, Any] = {}
         self.config = config or PipelineConfig()
-        self.callbacks: List[PipelineCallback] = callbacks or []
-        # UI callback logic removed
+        self.callbacks: list[PipelineCallback] = callbacks or []
 
     def add_step(self, step: PipelineStep) -> None:
         self.steps.append(step)
@@ -77,8 +90,8 @@ class Pipeline:
     async def _run_step(self, step: PipelineStep, image: Image.Image) -> StepResult:
         timeout_val = self.config.timeout
         retries = self.config.max_retries
-        # Adjust timeout and retries from metadata if available.
         process_method = step.__class__.process
+
         if hasattr(process_method, "_step_metadata"):
             metadata = process_method._step_metadata
             if metadata.timeout is not None:
@@ -88,39 +101,47 @@ class Pipeline:
 
         for attempt in range(1, retries + 1):
             try:
-                logger.info("Executing step", extra={"step": step.name, "attempt": attempt})
+                logger.info(f"Executing step {step.name} (Attempt {attempt})")
+
                 async with asyncio.timeout(timeout_val):
                     for callback in self.callbacks:
                         await callback.before_step(step.name)
+
                     result = await step.process(image, self.context)
+
                     for callback in self.callbacks:
                         await callback.after_step(step.name, result)
+
                     return result
+
             except Exception as e:
-                logger.error("Error in step", extra={"step": step.name, "attempt": attempt, "error": str(e)})
+                logger.exception(f"Error in step {step.name} (Attempt {attempt})")
+
                 if attempt < retries:
                     await asyncio.sleep(self.config.retry_delay)
                 else:
-                    failed = StepResult(status=StepStatus.FAILED, data={}, error=str(e))
-                    for callback in self.callbacks:
-                        await callback.after_step(step.name, failed)
-                    return failed
+                    raise StepExecutionError(step.name, retries, e) from e
 
-    async def run(self, image: Image.Image, initial_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def run(self, image: Image.Image, initial_context: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         self.context = initial_context or {}
         try:
             for step in self.steps:
                 logger.info("Starting step", extra={"step": step.name})
+
                 if not step.validate_context(self.context):
-                    raise ValueError(f"Missing keys for {step.name}")
+                    missing = [key for key in step.required_context_keys if key not in self.context]
+                    raise MissingContextError(step.name, missing)
+
                 result = await self._run_step(step, image)
+
                 if result.status == StepStatus.FAILED:
-                    raise RuntimeError(f"Step {step.name} failed: {result.error}")
+                    raise StepFailedError(step.name, result.error)
+
                 self.context.update(result.data)
                 logger.info("Completed step", extra={"step": step.name})
+
             return self.context
         finally:
-            # Ensure all callbacks are closed if applicable.
             for callback in self.callbacks:
                 if hasattr(callback, "close") and callable(callback.close):
                     await callback.close()

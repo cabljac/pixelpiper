@@ -1,7 +1,8 @@
 # types.py
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Optional
+
 
 class StepStatus(Enum):
     NOT_STARTED = "not_started"
@@ -10,8 +11,9 @@ class StepStatus(Enum):
     FAILED = "failed"
     SKIPPED = "skipped"
 
+
 @dataclass
 class StepResult:
     status: StepStatus
-    data: Dict[str, Any]
+    data: dict[str, Any]
     error: Optional[str] = None

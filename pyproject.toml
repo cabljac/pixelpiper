@@ -1,7 +1,7 @@
 [project]
 name = "pixelpiper"
 version = "0.0.1"
-description = "This is a template repository for Python projects that use uv for their dependency management."
+description = "Small library for building image processing pipelines"
 authors = [{ name = "Jacob Cable", email = "jacobcable94@gmail.com" }]
 readme = "README.md"
 keywords = ['python']

@@ -8,7 +8,7 @@ from pixelpiper.pipeline import Pipeline, PipelineConfig
 
 
 async def main() -> None:
-    config = PipelineConfig(max_retries=3, timeout=15.0, ui_url="http://localhost:3000")
+    config = PipelineConfig(max_retries=3, timeout=15.0)
     pipeline = Pipeline(config, callbacks=[TimingCallback()])
     pipeline.add_step(ImageResizeStep())
     image = Image.new("RGB", (800, 600), color="white")

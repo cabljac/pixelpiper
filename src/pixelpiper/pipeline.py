@@ -1,14 +1,12 @@
 import asyncio
 import logging
-import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from PIL import Image
-from pixelpiper.callbacks import PipelineCallback
-from pixelpiper.types import StepResult, StepStatus
+from .callbacks import PipelineCallback
+from .types import StepResult, StepStatus
 
 logger = logging.getLogger(__name__)
 

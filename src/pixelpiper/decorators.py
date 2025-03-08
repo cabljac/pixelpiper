@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional, Set
+from typing import Callable, Optional, Set
 
 class StepMetadata:
     """Metadata storage for step decorators."""

@@ -5,23 +5,19 @@ description = "This is a template repository for Python projects that use uv for
 authors = [{ name = "Jacob Cable", email = "jacobcable94@gmail.com" }]
 readme = "README.md"
 keywords = ['python']
-requires-python = ">=3.9,<4.0"
+requires-python = ">=3.11,<4.0"
 classifiers = [
   "Intended Audience :: Developers",
-  "Programming Language :: Python",
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "aiohttp>=3.11.13",
-    "pillow>=11.1.0",
-    "pytest-asyncio>=0.25.3",
-    "websockets>=15.0.1",
+  "aiohttp>=3.11.13",
+  "pillow>=11.1.0",
+  "pytest-asyncio>=0.25.3",
+  "websockets>=15.0.1",
 ]
 
 [project.urls]

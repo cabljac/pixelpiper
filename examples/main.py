@@ -3,7 +3,7 @@ import asyncio
 from PIL import Image
 from pixelpiper.pipeline import Pipeline, PipelineConfig
 from pixelpiper.callbacks import TimingCallback
-from pixelpiper.image_steps import ImageResizeStep
+from examples.image_steps import ImageResizeStep
 
 async def main() -> None:
     config = PipelineConfig(max_retries=3, timeout=15.0, ui_url="http://localhost:3000")

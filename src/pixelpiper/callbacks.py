@@ -1,11 +1,7 @@
-import io
 import time
-import base64
 import logging
-from PIL import Image
-import aiohttp
-from typing import Any, Dict, List
-from pixelpiper.types import StepResult  # Common types extracted to a separate module
+from typing import Dict
+from .types import StepResult  # Common types extracted to a separate module
 
 logger = logging.getLogger(__name__)
 
